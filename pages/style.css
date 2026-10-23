@@ -1,0 +1,392 @@
+:root {
+    --xm-blue: #0E419C;
+    --xm-blue-dark: #082E70;
+    --xm-blue-light: #EAF1FC;
+    --xm-orange: #E85B3F;
+    --page-bg: #F5F7FB;
+    --surface: #FFFFFF;
+    --text-main: #202B3C;
+    --text-muted: #6C7788;
+    --line: #E4E9F1;
+}
+
+.stApp,
+div[data-testid="stAppViewContainer"] {
+    background: var(--page-bg);
+    color: var(--text-main);
+    font-family: "Inter", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+
+.block-container {
+    max-width: 1320px;
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
+}
+
+h1, h2, h3 {
+    color: var(--text-main);
+    letter-spacing: -0.02em;
+}
+
+p, label, .stMarkdown, .stCaption {
+    color: var(--text-main);
+}
+
+/* 品牌栏 */
+.top-brand {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 14px 20px;
+    margin: 0 0 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 8px 24px rgba(15, 42, 85, 0.06);
+}
+
+.brand-seal {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--xm-blue);
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.brand-copy {
+    line-height: 1.25;
+}
+
+.brand-cn {
+    color: var(--xm-blue-dark);
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.brand-en {
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+.brand-divider {
+    width: 1px;
+    height: 38px;
+    background: var(--line);
+}
+
+.market-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-right: auto;
+    color: var(--xm-blue-dark);
+}
+
+.market-brand b {
+    display: block;
+    font-size: 17px;
+}
+
+.market-brand small {
+    display: block;
+    margin-top: 3px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.fish-mark {
+    font-size: 27px;
+}
+
+.top-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: #536174;
+    font-size: 13px;
+}
+
+.top-nav span {
+    padding: 9px 12px;
+    border-radius: 10px;
+}
+
+.top-nav .nav-active {
+    color: var(--xm-blue);
+    background: var(--xm-blue-light);
+    font-weight: 700;
+}
+
+.top-nav .nav-cert {
+    color: var(--xm-blue);
+    font-weight: 700;
+}
+
+/* 校园主视觉 */
+.hero-banner {
+    border: 1px solid rgba(14, 65, 156, 0.12);
+    border-radius: 22px !important;
+    box-shadow: 0 14px 36px rgba(15, 42, 85, 0.12);
+}
+
+.hero-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+        90deg,
+        rgba(5, 27, 67, 0.78) 0%,
+        rgba(8, 46, 112, 0.48) 48%,
+        rgba(8, 46, 112, 0.08) 100%
+    );
+}
+
+.hero-copy {
+    position: relative;
+    z-index: 1;
+    padding: 42px 48px;
+    color: #fff;
+}
+
+.hero-eyebrow {
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+.hero-title {
+    margin-top: 10px;
+    color: #fff;
+    font-size: clamp(38px, 5vw, 60px);
+    font-weight: 850;
+    letter-spacing: 0.02em;
+    text-shadow: 0 3px 16px rgba(0, 0, 0, 0.2);
+}
+
+.hero-subtitle {
+    margin-top: 7px;
+    color: #fff;
+    font-size: 19px;
+    font-weight: 600;
+}
+
+.hero-note {
+    margin-top: 14px;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 14px;
+}
+
+.hero-stamp {
+    position: absolute;
+    z-index: 1;
+    right: 24px;
+    bottom: 22px;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 14px;
+    color: #fff;
+    background: rgba(8, 46, 112, 0.32);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.6;
+    text-align: center;
+    backdrop-filter: blur(8px);
+}
+
+/* 分类入口 */
+.intro-strip {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 14px;
+    margin: 18px 0;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+}
+
+.intro-strip span {
+    padding: 9px 12px;
+    border-radius: 10px;
+    color: var(--xm-blue-dark);
+    background: var(--xm-blue-light);
+    font-size: 13px;
+    font-weight: 650;
+}
+
+/* 侧边栏卡片 */
+.side-login,
+.side-promo {
+    padding: 20px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgba(15, 42, 85, 0.05);
+}
+
+.side-login {
+    color: var(--text-main);
+    text-align: center;
+}
+
+.side-login-icon {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    margin: 0 auto 10px;
+    border-radius: 14px;
+    color: var(--xm-blue);
+    background: var(--xm-blue-light);
+    font-size: 22px;
+}
+
+.side-login small,
+.side-promo small {
+    display: block;
+    margin-top: 6px;
+    color: var(--text-muted);
+}
+
+.side-promo {
+    color: var(--xm-blue-dark);
+}
+
+.side-promo b {
+    display: block;
+    margin-top: 10px;
+    font-size: 20px;
+    line-height: 1.5;
+}
+
+/* 商品和价格 */
+.category-pill {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 999px;
+    color: var(--xm-blue);
+    background: var(--xm-blue-light);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.product-price {
+    color: var(--xm-orange);
+    font-size: 24px;
+    font-weight: 850;
+}
+
+/* 页面底部 */
+.campus-footer-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding: 22px 26px;
+    margin-top: 34px;
+    border-radius: 18px;
+    color: #fff;
+    background: linear-gradient(110deg, var(--xm-blue-dark), var(--xm-blue));
+}
+
+.campus-footer-banner b,
+.campus-footer-banner span {
+    display: block;
+}
+
+.campus-footer-banner span {
+    margin-top: 5px;
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 13px;
+}
+
+.footer-line-art {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 24px;
+}
+
+.site-footer {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 18px 4px;
+    color: var(--text-muted);
+}
+
+.site-footer b {
+    color: var(--xm-blue-dark);
+}
+
+.site-footer small {
+    width: 100%;
+}
+
+/* Streamlit 控件 */
+div[data-testid="stTextInput"] input,
+div[data-testid="stNumberInput"] input,
+div[data-testid="stTextArea"] textarea,
+div[data-testid="stSelectbox"] div[role="combobox"] {
+    border-radius: 11px;
+}
+
+.stButton button,
+.stFormSubmitButton button {
+    border-radius: 11px;
+    font-weight: 700;
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    border-color: var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+}
+
+@media (max-width: 760px) {
+    .block-container {
+        padding: 1rem 1rem 2rem;
+    }
+
+    .top-brand {
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .brand-divider {
+        display: none;
+    }
+
+    .market-brand {
+        margin-right: 0;
+    }
+
+    .top-nav {
+        width: 100%;
+    }
+
+    .hero-copy {
+        padding: 28px 22px;
+    }
+
+    .hero-stamp {
+        right: 12px;
+        bottom: 12px;
+    }
+
+    .intro-strip {
+        justify-content: flex-start;
+    }
+}
