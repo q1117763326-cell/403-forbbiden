@@ -10,8 +10,15 @@ import ssl
 import time
 from pathlib import Path
 from email.message import EmailMessage
-from database import check_and_log_verification, create_item, ensure_schema, list_items
+from database import (
+    check_and_log_verification,
+    create_item,
+    ensure_schema,
+    list_items,
+    normalize_contact,
+)
 from brand_assets import add_navigation_mascot_markers, image_data_uri
+from product_ui import render_contact_and_sale_actions
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -202,6 +209,12 @@ with main_col:
                 product_price = st.number_input("价格（RM）", min_value=0.0, max_value=99999.0, value=10.0, step=1.0)
                 seller_name = st.text_input("你的昵称", max_chars=20)
                 product_description = st.text_area("商品描述", max_chars=300, placeholder="介绍新旧程度、交易地点等")
+                product_contact = st.text_input(
+                    "联系方式（选填，公开展示）",
+                    max_chars=40,
+                    placeholder="WhatsApp / Telegram 链接或微信号",
+                    help="可填 WhatsApp / Telegram 链接或微信号，请勿填写学校邮箱",
+                )
                 publish = st.form_submit_button("发布商品")
 
             if publish:
@@ -209,19 +222,25 @@ with main_col:
                     st.error("请填写商品名称和昵称。")
                 else:
                     try:
-                        create_item(
-                            product_name.strip(),
-                            product_category,
-                            product_price,
-                            seller_name.strip(),
-                            st.session_state.verified_email,
-                            product_description.strip(),
-                        )
-                    except Exception:
-                        logger.exception("Failed to create a product from the home page")
-                        st.error("商品发布失败，请稍后重试。")
+                        contact = normalize_contact(product_contact)
+                    except ValueError as exc:
+                        st.error(str(exc))
                     else:
-                        st.success("商品已发布。")
+                        try:
+                            create_item(
+                                product_name.strip(),
+                                product_category,
+                                product_price,
+                                seller_name.strip(),
+                                st.session_state.verified_email,
+                                product_description.strip(),
+                                contact,
+                            )
+                        except Exception:
+                            logger.exception("Failed to create a product from the home page")
+                            st.error("商品发布失败，请稍后重试。")
+                        else:
+                            st.success("商品已发布。")
 
     search_text = st.text_input(
         "🔍 搜一搜",
@@ -240,8 +259,13 @@ with main_col:
     st.divider()
     st.subheader("校园热门推荐")
 
+    viewer_email = (
+        st.session_state.get("verified_email")
+        if st.session_state.get("email_verified")
+        else None
+    )
     try:
-        items = list_items()
+        items = list_items(viewer_email=viewer_email)
     except Exception:
         logger.exception("Failed to load products for the home page")
         st.error("商品加载失败，请稍后重试。")
@@ -285,6 +309,11 @@ with main_col:
                     st.markdown(f'<div class="seller-row"><img src="{avatar_mood}" alt="厦了么鱼表情头像"/><span>发布者：<b>{seller_text}</b></span></div>', unsafe_allow_html=True)
                     if item["description"]:
                         st.caption(item["description"])
+                    render_contact_and_sale_actions(
+                        item,
+                        key_prefix="home",
+                        viewer_email=viewer_email,
+                    )
 
 
 st.markdown(

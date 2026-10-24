@@ -1,7 +1,7 @@
 import logging
 
 import streamlit as st
-from database import list_items
+from database import get_item_stats
 from brand_assets import add_navigation_mascot_markers, image_data_uri
 
 logger = logging.getLogger(__name__)
@@ -100,23 +100,23 @@ st.markdown(
 )
 
 try:
-    items = list_items()
+    stats = get_item_stats()
 except Exception:
-    logger.exception("Failed to load products for the about page")
+    logger.exception("Failed to load product statistics for the about page")
     st.error("商品数据加载失败，请稍后重试。")
-    items = []
+    stats = {"total": 0, "available": 0, "categories": 0}
 
-categories = {item["category"] for item in items}
 mascot_happy = image_data_uri("mascot_happy.png")
 mascot_wink = image_data_uri("mascot_wink.png")
 mascot_cheer = image_data_uri("mascot_cheer.png")
 mascot_serious = image_data_uri("mascot_serious.png")
 mascot_sleep = image_data_uri("mascot_sleep.png")
 
-metric_a, metric_b, metric_c = st.columns(3)
-metric_a.metric("平台商品", len(items))
-metric_b.metric("商品分类", len(categories))
-metric_c.metric("服务对象", "校园社区")
+metric_a, metric_b, metric_c, metric_d = st.columns(4)
+metric_a.metric("平台商品", stats["total"])
+metric_b.metric("在售好物", stats["available"])
+metric_c.metric("商品分类", stats["categories"])
+metric_d.metric("服务对象", "校园社区")
 
 st.divider()
 

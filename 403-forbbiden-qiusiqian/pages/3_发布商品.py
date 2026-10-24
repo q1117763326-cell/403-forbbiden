@@ -1,7 +1,7 @@
 import logging
 
 import streamlit as st
-from database import create_item
+from database import create_item, normalize_contact
 from brand_assets import add_navigation_mascot_markers, image_data_uri
 
 logger = logging.getLogger(__name__)
@@ -115,6 +115,13 @@ else:
                     height=130,
                 )
 
+                contact = st.text_input(
+                    "联系方式（选填，公开展示）",
+                    max_chars=40,
+                    placeholder="WhatsApp / Telegram 链接或微信号",
+                    help="可填 WhatsApp / Telegram 链接或微信号，请勿填写学校邮箱",
+                )
+
                 submitted = st.form_submit_button(
                     "发布商品",
                     use_container_width=True,
@@ -143,16 +150,22 @@ else:
             st.error("请填写商品名称和昵称。")
         else:
             try:
-                create_item(
-                    name.strip(),
-                    category,
-                    price,
-                    seller.strip(),
-                    st.session_state.verified_email,
-                    description.strip(),
-                )
-            except Exception:
-                logger.exception("Failed to create a product from the publish page")
-                st.error("商品发布失败，请稍后重试。")
+                contact_value = normalize_contact(contact)
+            except ValueError as exc:
+                st.error(str(exc))
             else:
-                st.success("商品发布成功！可以去商品分类页面查看。")
+                try:
+                    create_item(
+                        name.strip(),
+                        category,
+                        price,
+                        seller.strip(),
+                        st.session_state.verified_email,
+                        description.strip(),
+                        contact_value,
+                    )
+                except Exception:
+                    logger.exception("Failed to create a product from the publish page")
+                    st.error("商品发布失败，请稍后重试。")
+                else:
+                    st.success("商品发布成功！可以去商品分类页面查看。")

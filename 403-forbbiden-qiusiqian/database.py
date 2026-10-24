@@ -19,6 +19,10 @@ SAMPLE_ITEMS = [
     ("无线鼠标，功能正常", "数码产品", 25.0, "小周", "含接收器，正常使用。"),
 ]
 
+CONTACT_MAX_LENGTH = 40
+_CONTACT_LINK_PREFIXES = ("http://", "https://", "mailto:")
+_CONTACT_BLOCKED_PREFIXES = ("javascript:", "data:")
+
 # Per-email limits, and a global cap that protects the shared SMTP account.
 VERIFICATION_WINDOWS = ((60, 1), (3600, 5), (86400, 10))
 VERIFICATION_GLOBAL_WINDOW = 3600
@@ -69,6 +73,45 @@ def _query(sql):
     return sql
 
 
+def normalize_contact(value):
+    """Return a trimmed, safe contact value or raise ValueError."""
+    contact = "" if value is None else str(value).strip()
+    if len(contact) > CONTACT_MAX_LENGTH:
+        raise ValueError(f"联系方式不能超过 {CONTACT_MAX_LENGTH} 个字符。")
+    if contact.lower().startswith(_CONTACT_BLOCKED_PREFIXES):
+        raise ValueError("联系方式格式无效，请填写链接或微信号。")
+    return contact
+
+
+def is_contact_link(contact):
+    """Only http(s) and mailto contacts are rendered as clickable links."""
+    return str(contact or "").strip().lower().startswith(_CONTACT_LINK_PREFIXES)
+
+
+def _ensure_product_columns(connection):
+    """Add new product columns to databases created by older releases."""
+    if using_postgres():
+        connection.execute(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS contact TEXT NOT NULL DEFAULT ''"
+        )
+        connection.execute(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'available'"
+        )
+        return
+
+    existing_columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(products)").fetchall()
+    }
+    if "contact" not in existing_columns:
+        connection.execute(
+            "ALTER TABLE products ADD COLUMN contact TEXT NOT NULL DEFAULT ''"
+        )
+    if "status" not in existing_columns:
+        connection.execute(
+            "ALTER TABLE products ADD COLUMN status TEXT NOT NULL DEFAULT 'available'"
+        )
+
+
 def init_db():
     if using_postgres():
         create_products = """
@@ -80,6 +123,8 @@ def init_db():
                 seller TEXT NOT NULL,
                 seller_email TEXT NOT NULL DEFAULT '',
                 description TEXT NOT NULL DEFAULT '',
+                contact TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'available',
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """
@@ -100,6 +145,8 @@ def init_db():
                 seller TEXT NOT NULL,
                 seller_email TEXT NOT NULL DEFAULT '',
                 description TEXT NOT NULL DEFAULT '',
+                contact TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'available',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """
@@ -114,6 +161,10 @@ def init_db():
     with connect() as connection:
         connection.execute(create_products)
         connection.execute(create_verification_log)
+        _ensure_product_columns(connection)
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_products_status ON products (status)"
+        )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_verification_log_email_created "
             "ON verification_log (email_hash, created_at)"
@@ -150,32 +201,94 @@ def ensure_schema():
         _schema_ready = True
 
 
-def list_items():
+def list_items(include_sold=False, viewer_email=None):
+    """List products, hiding sold items by default.
+
+    seller_email is never selected. It is only compared in SQL to expose a
+    boolean is_mine flag for the current viewer.
+    """
     ensure_schema()
+    where_clause = "" if include_sold else "WHERE status = 'available'"
+    viewer = str(viewer_email).strip() if viewer_email else None
     try:
         with connect() as connection:
             rows = connection.execute(
-                "SELECT id, name, category, price, seller, description FROM products ORDER BY id DESC"
+                _query(f"""
+                SELECT id, name, category, price, seller, description, contact, status,
+                       (seller_email = ?) AS is_mine
+                FROM products
+                {where_clause}
+                ORDER BY id DESC
+                """),
+                (viewer,),
             ).fetchall()
-            return [dict(row) for row in rows]
+            items = []
+            for row in rows:
+                item = dict(row)
+                item["is_mine"] = bool(item.get("is_mine"))
+                items.append(item)
+            return items
     except Exception:
         logger.exception("Failed to list products")
         raise
 
 
-def create_item(name, category, price, seller, seller_email, description):
+def create_item(name, category, price, seller, seller_email, description, contact=""):
     ensure_schema()
+    contact = normalize_contact(contact)
     try:
         with connect() as connection:
             connection.execute(
                 _query("""
-                INSERT INTO products (name, category, price, seller, seller_email, description)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO products (name, category, price, seller, seller_email, description, contact)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """),
-                (name, category, price, seller, seller_email, description),
+                (name, category, price, seller, seller_email, description, contact),
             )
     except Exception:
         logger.exception("Failed to create a product")
+        raise
+
+
+def mark_item_sold(item_id, seller_email):
+    """Mark an available item sold only when the viewer owns it."""
+    ensure_schema()
+    owner_email = str(seller_email or "").strip()
+    if not owner_email:
+        return False
+    try:
+        with connect() as connection:
+            cursor = connection.execute(
+                _query(
+                    "UPDATE products SET status = 'sold' "
+                    "WHERE id = ? AND seller_email = ? AND status = 'available'"
+                ),
+                (item_id, owner_email),
+            )
+            return cursor.rowcount > 0
+    except Exception:
+        logger.exception("Failed to mark a product as sold")
+        raise
+
+
+def get_item_stats():
+    """Return totals for About/statistics without exposing seller_email."""
+    ensure_schema()
+    try:
+        with connect() as connection:
+            row = connection.execute("""
+                SELECT COUNT(*) AS total,
+                       COALESCE(SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END), 0) AS available,
+                       COUNT(DISTINCT category) AS categories
+                FROM products
+            """).fetchone()
+            return {
+                "total": int(row["total"]),
+                "available": int(row["available"]),
+                "categories": int(row["categories"]),
+            }
+    except Exception:
+        logger.exception("Failed to load product statistics")
         raise
 
 

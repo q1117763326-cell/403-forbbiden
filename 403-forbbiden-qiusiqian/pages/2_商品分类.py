@@ -4,6 +4,7 @@ import logging
 import streamlit as st
 from database import list_items
 from brand_assets import add_navigation_mascot_markers, image_data_uri
+from product_ui import render_contact_and_sale_actions
 
 logger = logging.getLogger(__name__)
 
@@ -196,8 +197,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+viewer_email = (
+    st.session_state.get("verified_email")
+    if st.session_state.get("email_verified")
+    else None
+)
 try:
-    items = list_items()
+    items = list_items(viewer_email=viewer_email)
 except Exception:
     logger.exception("Failed to load products for the category page")
     st.error("商品加载失败，请稍后重试。")
@@ -293,4 +299,9 @@ else:
                 </div>
                 """,
                 unsafe_allow_html=True,
+            )
+            render_contact_and_sale_actions(
+                item,
+                key_prefix="category",
+                viewer_email=viewer_email,
             )
