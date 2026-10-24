@@ -188,7 +188,6 @@ with main_col:
                         product_description.strip(),
                     )
                     st.success("商品已发布。")
-                    st.rerun()
 
     search_text = st.text_input(
         "🔍 搜一搜",
