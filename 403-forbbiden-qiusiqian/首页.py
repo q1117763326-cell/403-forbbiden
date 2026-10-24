@@ -19,6 +19,7 @@ from database import (
 )
 from brand_assets import add_navigation_mascot_markers, image_data_uri
 from product_ui import render_contact_and_sale_actions
+from text_utils import mask_email
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -335,7 +336,7 @@ with st.expander(
         st.caption("使用学校邮箱接收一次性验证码。")
 
     if st.session_state.get("email_verified"):
-        st.success(f"已在此浏览器会话中验证：{st.session_state.verified_email}")
+        st.success(f"已在此浏览器会话中验证：{mask_email(st.session_state.verified_email)}")
     else:
         pending = st.session_state.get("email_pending")
         with st.form("school_email_form"):

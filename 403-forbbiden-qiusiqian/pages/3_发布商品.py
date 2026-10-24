@@ -3,6 +3,7 @@ import logging
 import streamlit as st
 from database import create_item, normalize_contact
 from brand_assets import add_navigation_mascot_markers, image_data_uri
+from text_utils import mask_email
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ else:
             """,
             unsafe_allow_html=True,
         )
-        st.caption(st.session_state.get("verified_email", ""))
+        st.caption(mask_email(st.session_state.get("verified_email", "")))
 
     if submitted:
         if not name.strip() or not seller.strip():

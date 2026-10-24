@@ -201,15 +201,20 @@ def ensure_schema():
         _schema_ready = True
 
 
-def list_items(include_sold=False, viewer_email=None):
-    """List products, hiding sold items by default.
+def list_items(include_sold=False, viewer_email=None, limit=200):
+    """List products, hiding sold items and capping the rendered result set.
 
     seller_email is never selected. It is only compared in SQL to expose a
-    boolean is_mine flag for the current viewer.
+    boolean is_mine flag for the current viewer. Pass limit=None for no cap.
     """
     ensure_schema()
     where_clause = "" if include_sold else "WHERE status = 'available'"
     viewer = str(viewer_email).strip() if viewer_email else None
+    params = [viewer]
+    limit_clause = ""
+    if limit is not None:
+        limit_clause = "LIMIT ?"
+        params.append(max(0, int(limit)))
     try:
         with connect() as connection:
             rows = connection.execute(
@@ -219,8 +224,9 @@ def list_items(include_sold=False, viewer_email=None):
                 FROM products
                 {where_clause}
                 ORDER BY id DESC
+                {limit_clause}
                 """),
-                (viewer,),
+                tuple(params),
             ).fetchall()
             items = []
             for row in rows:

@@ -29,7 +29,8 @@
 | --- | --- |
 | 🎓 学生邮箱认证 | 仅接受 `@xmu.edu.my`；验证码 10 分钟有效、最多尝试 5 次、60 秒重发冷却 |
 | 🛍️ 商品浏览 | 分类筛选、关键词搜索、价格排序、热门推荐 |
-| 📦 发布闲置 | 名称 / 分类 / 价格（RM）/ 昵称 / 描述；未认证用户会被拦截 |
+| 📦 发布闲置 | 名称 / 分类 / 价格（RM）/ 昵称 / 描述 / 可选联系方式；未认证用户会被拦截 |
+| 🤝 联系方式与售出 | 支持 WhatsApp / Telegram 链接或微信号；发布者可标记已售出，已售商品默认隐藏 |
 | 🎨 品牌化界面 | 嘉庚风格视觉、校园吉祥物、响应式布局 |
 | 🗄️ 数据持久化 | 默认 SQLite；设置 `DATABASE_URL` 可切换 PostgreSQL |
 
@@ -85,10 +86,14 @@ SMTP_FROM=<your-email>
 ├── 首页.py              主页面（品牌头图 / 搜索 / 商品列表 / 学生认证）
 ├── pages/               商品分类 / 发布商品 / 关于我们 / 交易规则
 ├── assets/              校园建筑、吉祥物、分类图
-├── brand_assets.py      图片转 data URI、侧边栏装饰
+├── tests/               AppTest 流程测试（使用临时 SQLite）
+├── brand_assets.py      图片转 data URI（带缓存）、侧边栏装饰
 ├── database.py          SQLite / PostgreSQL 数据层
+├── product_ui.py        联系方式与售出操作
+├── text_utils.py        邮箱打码等文本工具
 ├── styles.css           全局样式
-└── requirements.txt     Python 依赖
+├── requirements.txt     Python 依赖
+└── requirements-dev.txt 测试依赖
 DEMO.md                  3 分钟演示脚本
 docs/preview.png         首页截图
 ```
@@ -97,11 +102,30 @@ docs/preview.png         首页截图
 
 - 仅接受 `@xmu.edu.my` 学校邮箱；验证码发送到该邮箱，需实际收信才能通过（证明邮箱所有权）
 - 验证码加盐哈希存储、10 分钟过期、最多 5 次尝试、60 秒重发冷却
+- 页面上的认证邮箱统一打码展示（如 `alice@xmu.edu.my` → `a***@xmu.edu.my`）；完整邮箱仍保留在会话状态与 `seller_email` 字段中，仅用于商品所有权判断，不会展示
+- 商品联系方式由用户填写：链接仅支持 http(s)/mailto，纯文本按原文转义展示；发布时拒绝 `javascript:`、`data:` 等危险前缀
+- `seller_email` 不会随商品列表返回或展示
 - 仓库不含任何邮箱凭据、SMTP 授权码或 Token
 
 ## 🧪 测试
 
-- E2E（Streamlit AppTest）：邮箱验证 → 发布商品 → SQLite 落库 → 未认证用户拦截
+在应用目录安装依赖并运行：
+
+```bash
+cd 403-forbbiden-qiusiqian
+pip install -r requirements.txt -r requirements-dev.txt
+pytest -q
+```
+
+测试使用 `tests/test_flow.py` 中的临时 SQLite 数据库，不会读写 `campus_market.db`。覆盖邮箱域名校验、验证码错误/过期、未认证发布拦截、商品发布落库、联系方式校验、已售出过滤与列表上限。
+
+## 🤝 联系方式与已售出
+
+- 发布商品时可填写「联系方式（选填，公开展示）」：WhatsApp / Telegram 链接会显示为「联系卖家」按钮，微信号等纯文本会以 `联系方式：...` 展示
+- 只有发布者本人会看到「标记已售出」；标记后商品从公开列表隐藏，但仍计入「关于我们」的总数统计
+- 已售商品不会出现在首页和商品分类页的在售列表中
+
+可复制 `.env.example` 为本地 `.env` 后填写配置；示例文件不包含任何真实凭据。
 
 ## ⚠️ 当前限制
 

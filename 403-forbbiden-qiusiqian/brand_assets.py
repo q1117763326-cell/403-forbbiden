@@ -4,10 +4,13 @@ import base64
 import mimetypes
 from pathlib import Path
 
+import streamlit as st
+
 
 ASSET_DIR = Path(__file__).resolve().parent / "assets"
 
 
+@st.cache_data
 def image_data_uri(filename: str) -> str:
     """Return a local image as a self-contained data URI for reliable Streamlit HTML rendering."""
     path = ASSET_DIR / filename
@@ -20,8 +23,6 @@ def image_data_uri(filename: str) -> str:
 
 def add_navigation_mascot_markers() -> None:
     """Decorate page-navigation links with the mascot pointing back toward them."""
-    import streamlit as st
-
     pointer = image_data_uri("mascot_pointer.svg")
     st.markdown(
         f"""
