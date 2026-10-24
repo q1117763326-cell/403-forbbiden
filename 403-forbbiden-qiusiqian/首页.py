@@ -1,3 +1,5 @@
+import json
+import urllib.request
 import hashlib
 import html
 import hmac
@@ -49,6 +51,9 @@ for secret_name in (
     "SMTP_FROM",
     "SMTP_USE_SSL",
     "DATABASE_URL",
+    "AI_API_KEY",
+    "AI_BASE_URL",
+    "AI_MODEL",
 ):
     if secret_name not in os.environ:
         try:
