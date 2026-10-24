@@ -1,0 +1,310 @@
+import html
+import logging
+
+import streamlit as st
+from database import CATEGORIES, list_items
+from brand_assets import (
+    CATEGORY_ICONS,
+    add_navigation_mascot_markers,
+    image_data_uri,
+)
+from product_ui import render_contact_and_sale_actions
+from search_utils import search_items, sort_items, suggest_similar_items
+from text_utils import format_relative_time
+
+logger = logging.getLogger(__name__)
+
+st.set_page_config(
+    page_title="商品分类 · 厦了么鱼",
+    page_icon="🐟",
+    layout="wide",
+)
+add_navigation_mascot_markers()
+
+mascot_moods = [
+    image_data_uri("mascot_happy.png"),
+    image_data_uri("mascot_wink.png"),
+    image_data_uri("mascot_cheer.png"),
+    image_data_uri("mascot_confused.png"),
+    image_data_uri("mascot_serious.png"),
+    image_data_uri("mascot_sleep.png"),
+]
+
+st.markdown(
+    """
+    <style>
+    .block-container {
+        max-width: 1180px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
+
+    .market-hero {
+        position: relative;
+        overflow: hidden;
+        padding: 34px 38px;
+        padding-right: 230px;
+        border: 1px solid #dce6dc;
+        border-radius: 22px;
+        background:
+            radial-gradient(circle at 88% 20%, #ffffffb8 0, #ffffff00 25%),
+            linear-gradient(120deg, #e6eee7 0%, #f3eee2 100%);
+        margin-bottom: 24px;
+    }
+
+    .market-eyebrow {
+        color: #5c7966;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 2px;
+    }
+
+    .market-hero h1 {
+        color: #263d32;
+        font-size: 38px;
+        margin: 10px 0 6px 0;
+    }
+
+    .market-title-mascot {
+        display:inline-block;
+        width:44px;
+        height:40px;
+        margin-left:5px;
+        vertical-align:middle;
+        object-fit:contain;
+        border-radius:10px;
+        mix-blend-mode:multiply;
+    }
+
+    .market-hero p {
+        color: #5d6f62;
+        font-size: 16px;
+        margin: 0;
+    }
+
+    .market-moods {
+        position: absolute;
+        right: 22px;
+        bottom: 0;
+        display: flex;
+        align-items: flex-end;
+        gap: 2px;
+    }
+
+    .market-moods img {
+        width: 76px;
+        height: 72px;
+        object-fit: contain;
+        border-radius: 16px;
+        mix-blend-mode: multiply;
+    }
+
+    .market-moods img:nth-child(2) { transform: translateY(-14px) rotate(-5deg); }
+    .market-moods img:nth-child(3) { transform: translateY(-3px) rotate(5deg); }
+
+    @media (max-width: 700px) {
+        .market-hero { padding-right: 115px; }
+        .market-moods { right: 4px; }
+        .market-moods img { width: 48px; height: 54px; }
+    }
+
+    .section-kicker {
+        color: #69816f;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .product-card {
+        min-height: 190px;
+        padding: 20px;
+        border: 1px solid #e3e9e1;
+        border-radius: 18px;
+        background: #fffefa;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 14px #263d320c;
+    }
+
+    .product-icon {
+        font-size: 28px;
+        margin-bottom: 10px;
+    }
+
+    .product-name {
+        color: #293d32;
+        font-size: 19px;
+        font-weight: 700;
+        line-height: 1.4;
+        margin-bottom: 8px;
+        overflow-wrap: anywhere;
+    }
+
+    .product-category {
+        display: inline-block;
+        color: #55715f;
+        background: #edf3ec;
+        border-radius: 20px;
+        padding: 4px 10px;
+        font-size: 12px;
+        margin-bottom: 12px;
+    }
+
+    .product-price {
+        color: #a45f32;
+        font-size: 24px;
+        font-weight: 800;
+        margin-bottom: 8px;
+    }
+
+    .product-meta {
+        color: #69756c;
+        font-size: 13px;
+        margin-bottom: 8px;
+    }
+
+    .seller-row { display:flex; align-items:center; gap:8px; }
+    .seller-row img { width:30px; height:30px; border-radius:50%; object-fit:cover; border:1px solid #dceafa; }
+
+    .product-description {
+        color: #59665d;
+        font-size: 14px;
+        line-height: 1.6;
+        overflow-wrap: anywhere;
+    }
+
+    .empty-state {
+        padding: 32px;
+        border: 1px dashed #cbd8cc;
+        border-radius: 18px;
+        background: #fbfcf8;
+        color: #58695d;
+        text-align: center;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    f"""
+    <div class="market-hero">
+        <div class="market-eyebrow">XMUM CAMPUS MARKET</div>
+        <h1>发现校园好物 <img class="market-title-mascot" src="{mascot_moods[0]}" alt="开心的小鱼吉祥物" /></h1>
+        <p>从教材到宿舍用品，让闲置好物遇见需要它的人。</p>
+        <div class="market-moods" aria-label="厦了么鱼表情">
+            <img src="{mascot_moods[0]}" alt="开心的小鱼" />
+            <img src="{mascot_moods[1]}" alt="比心的小鱼" />
+            <img src="{mascot_moods[2]}" alt="加油的小鱼" />
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+viewer_email = (
+    st.session_state.get("verified_email")
+    if st.session_state.get("email_verified")
+    else None
+)
+try:
+    items = list_items(viewer_email=viewer_email)
+except Exception:
+    logger.exception("Failed to load products for the category page")
+    st.error("商品加载失败，请稍后重试。")
+    items = []
+
+filter_col, search_col, sort_col = st.columns([1.2, 2.2, 1.2])
+
+with filter_col:
+    selected_category = st.selectbox(
+        "商品分类",
+        ["全部分类", *CATEGORIES],
+    )
+
+with search_col:
+    search_text = st.text_input(
+        "搜索商品",
+        placeholder="试试搜索：高数教材、台灯、鼠标……",
+    )
+
+with sort_col:
+    sort_option = st.selectbox(
+        "排序方式",
+        ["最新发布", "价格从低到高", "价格从高到低"],
+    )
+
+category_items = [
+    item for item in items
+    if selected_category == "全部分类" or item["category"] == selected_category
+]
+shown_items = (
+    search_items(category_items, search_text)
+    if search_text.strip()
+    else category_items
+)
+shown_items = sort_items(shown_items, sort_option)
+
+st.divider()
+
+metric_col, heading_col = st.columns([1, 4])
+
+with metric_col:
+    st.metric("在售好物", len(items))
+
+with heading_col:
+    st.markdown('<div class="section-kicker">CAMPUS FINDS</div>', unsafe_allow_html=True)
+    st.subheader("最新发布")
+    st.caption(f"找到 {len(shown_items)} 件符合条件的商品")
+
+if not shown_items:
+    st.markdown(
+        """
+        <div class="empty-state">
+            <div style="font-size: 34px;">🧺</div>
+            <h3>暂时没有找到商品</h3>
+            <p>换个分类或关键词再试试看。</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if search_text.strip():
+        suggestions = suggest_similar_items(category_items, search_text)
+        if suggestions:
+            st.caption(
+                "你是不是想找：" + "、".join(html.escape(name) for name in suggestions)
+            )
+else:
+    product_columns = st.columns(3)
+
+    for index, item in enumerate(shown_items):
+        name = html.escape(str(item["name"]))
+        category = html.escape(str(item["category"]))
+        seller = html.escape(str(item["seller"]))
+        description = html.escape(str(item.get("description", "")))
+        avatar_mood = mascot_moods[index % len(mascot_moods)]
+        icon = CATEGORY_ICONS[item["category"]]
+        price = f"{float(item['price']):.2f}"
+        relative_time = html.escape(format_relative_time(item.get("created_at")))
+
+        with product_columns[index % 3]:
+            st.markdown(
+                f"""
+                <div class="product-card">
+                    <div class="product-icon">{icon}</div>
+                    <div class="product-name">{name}</div>
+                    <div class="product-category">{category}</div>
+                    <div class="product-price">RM {price}</div>
+                    <div class="product-meta seller-row"><img src="{avatar_mood}" alt="厦了么鱼表情头像"/><span>发布者：{seller}</span></div>
+                    <div class="product-meta">发布于 {relative_time}</div>
+                    <div class="product-description">{description}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            render_contact_and_sale_actions(
+                item,
+                key_prefix="category",
+                viewer_email=viewer_email,
+            )
