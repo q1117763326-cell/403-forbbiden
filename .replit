@@ -1,0 +1,12 @@
+modules = ["python-3.12"]
+
+run = ["bash", "run.sh"]
+onBoot = "python3 -m pip install -r 403-forbbiden-qiusiqian/requirements.txt"
+
+[deployment]
+build = ["python3", "-m", "pip", "install", "-r", "403-forbbiden-qiusiqian/requirements.txt"]
+run = ["bash", "run.sh"]
+
+[[ports]]
+localPort = 8501
+externalPort = 80
