@@ -6,7 +6,7 @@
 
 让闲置流转 · 让校园更有温度
 
-[![SDC Hackathon](https://img.shields.io/badge/SDC-Hackathon%201.0-0f766e?style=flat-square)](https://sdchack.my/)
+[![SDC Hackathon](https://img.shields.io/badge/SDC-Hackathon%202026-0f766e?style=flat-square)](https://sdchack.my/)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.66-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-D22128?style=flat-square)](LICENSE)
@@ -52,6 +52,12 @@ flowchart LR
 - **认证**：学校邮箱 + 一次性验证码（SHA-256 加盐哈希、会话内状态）
 - **数据层**：SQLite 本地文件，或通过 `DATABASE_URL` 切换 PostgreSQL
 
+## 🤖 AI 使用说明
+
+- **产品运行时不含 AI**：验证码校验、搜索排序、分类白名单、售出所有权判断全部为确定性逻辑，不调用任何模型或外部 AI API。
+- **开发过程使用 AI**：编码 agent 参与实现、重构、测试生成与部署自动化；具体工具已在 Technical & Tools Declaration 中声明。
+- **原因**：二手交易属于信任敏感场景，生成式模型改写商品信息或编造价格会带来欺诈与责任风险。我们选择可审计的确定性路径，并在提交文档中如实说明。
+
 ## 🚀 快速开始
 
 ```bash
@@ -63,6 +69,14 @@ streamlit run 首页.py
 ```
 
 打开 http://localhost:8501
+
+### 在 Replit 上运行
+
+仓库根目录包含 `.replit` 与 `run.sh`。在 Replit 导入本仓库后点击 Run 即可：
+
+- `.replit` 将应用绑定到 `0.0.0.0:8501`，并声明 Autoscale 的构建与启动命令
+- Replit 发布后的文件系统会重置；需要持久化时请创建 Replit PostgreSQL 并设置 `DATABASE_URL`
+- 未配置 SMTP 时应用进入演示验证模式（验证码显示在页面上），仅用于评审演示
 
 ### 邮箱验证配置
 
@@ -95,7 +109,9 @@ SMTP_FROM=<your-email>
 ├── styles.css           全局样式
 ├── requirements.txt     Python 依赖
 └── requirements-dev.txt 测试依赖
-DEMO.md                  3 分钟演示脚本
+.replit                  Replit 运行 / 发布配置
+run.sh                   Replit 启动脚本
+DEMO.md                  现场演示与路演视频脚本
 docs/preview.png         首页截图
 ```
 
@@ -119,7 +135,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 pytest -q
 ```
 
-测试使用 `tests/test_flow.py` 中的临时 SQLite 数据库，不会读写 `campus_market.db`。覆盖多词/同义词搜索与建议、价格排序、分类白名单、服务端校验、重复提交、验证码错误/过期与失败锁定、未认证发布拦截、发布落库、联系方式校验、已售出过滤与列表上限。
+测试使用 `tests/test_flow.py` 中的临时 SQLite 数据库，不会读写 `campus_market.db`。当前 **22 项测试全部通过**。覆盖多词/同义词搜索与建议、价格排序、分类白名单、服务端校验、重复提交、验证码错误/过期与失败锁定、未认证发布拦截、发布落库、联系方式校验、已售出过滤与列表上限。
 
 ## 🤝 联系方式与已售出
 
@@ -132,7 +148,9 @@ pytest -q
 ## ⚠️ 当前限制
 
 - 验证状态保存在浏览器会话；刷新或重启后需重新验证（下一步：持久化账户）
-- `dev` 模式不验证邮箱所有权，仅用于演示
+- 生产登录依赖单一 SMTP 发信账号；SMTP 故障会直接影响认证
+- Replit 评审实例未配置 SMTP，使用演示验证模式
+- 商品图片沿用分类配图，暂不支持卖家上传
 - 暂无管理后台 / 举报 / 风控
 
 ## 🗺️ Roadmap
