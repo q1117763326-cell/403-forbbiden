@@ -48,7 +48,10 @@ for secret_name in (
     "SMTP_PASSWORD",
     "SMTP_FROM",
     "SMTP_USE_SSL",
-    "DATABASE_URL",
+    "DATABASE_URL",    
+    "AI_API_KEY",
+    "AI_BASE_URL",
+    "AI_MODEL",
 ):
     if secret_name not in os.environ:
         try:
