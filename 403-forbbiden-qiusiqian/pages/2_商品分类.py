@@ -1,7 +1,11 @@
 import html
+import logging
+
 import streamlit as st
 from database import list_items
 from brand_assets import add_navigation_mascot_markers, image_data_uri
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="商品分类 · 厦了么鱼",
@@ -192,7 +196,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-items = list_items()
+try:
+    items = list_items()
+except Exception:
+    logger.exception("Failed to load products for the category page")
+    st.error("商品加载失败，请稍后重试。")
+    items = []
 
 filter_col, search_col, sort_col = st.columns([1.2, 2.2, 1.2])
 

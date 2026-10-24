@@ -1,6 +1,10 @@
+import logging
+
 import streamlit as st
 from database import list_items
 from brand_assets import add_navigation_mascot_markers, image_data_uri
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="关于我们 · 厦了么鱼",
@@ -95,7 +99,13 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-items = list_items()
+try:
+    items = list_items()
+except Exception:
+    logger.exception("Failed to load products for the about page")
+    st.error("商品数据加载失败，请稍后重试。")
+    items = []
+
 categories = {item["category"] for item in items}
 mascot_happy = image_data_uri("mascot_happy.png")
 mascot_wink = image_data_uri("mascot_wink.png")

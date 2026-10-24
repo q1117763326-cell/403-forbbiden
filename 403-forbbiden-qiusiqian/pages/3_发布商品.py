@@ -1,6 +1,10 @@
+import logging
+
 import streamlit as st
 from database import create_item
 from brand_assets import add_navigation_mascot_markers, image_data_uri
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="发布商品 · 厦了么鱼",
@@ -76,7 +80,8 @@ st.markdown(
 )
 
 if not st.session_state.get("email_verified"):
-    st.warning("发布商品前，请先回到首页完成学生邮箱验证。")
+    st.warning("发布商品前，请先完成学生邮箱验证。")
+    st.page_link("首页.py", label="去完成学生邮箱验证")
 else:
     form_col, note_col = st.columns([2, 1], gap="large")
 
@@ -137,12 +142,17 @@ else:
         if not name.strip() or not seller.strip():
             st.error("请填写商品名称和昵称。")
         else:
-            create_item(
-                name.strip(),
-                category,
-                price,
-                seller.strip(),
-                st.session_state.verified_email,
-                description.strip(),
-            )
-            st.success("商品发布成功！可以去商品分类页面查看。")
+            try:
+                create_item(
+                    name.strip(),
+                    category,
+                    price,
+                    seller.strip(),
+                    st.session_state.verified_email,
+                    description.strip(),
+                )
+            except Exception:
+                logger.exception("Failed to create a product from the publish page")
+                st.error("商品发布失败，请稍后重试。")
+            else:
+                st.success("商品发布成功！可以去商品分类页面查看。")

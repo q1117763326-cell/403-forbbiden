@@ -26,6 +26,7 @@ def add_navigation_mascot_markers() -> None:
     st.markdown(
         f"""
         <style>
+        .st-key-top_brand_bar {{ --nav-pointer:url("{pointer}"); }}
         [data-testid="stSidebar"] a[href]::after {{
             content:"";
             position:absolute;

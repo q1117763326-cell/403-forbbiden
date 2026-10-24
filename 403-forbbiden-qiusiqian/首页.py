@@ -1,6 +1,7 @@
 import hashlib
 import html
 import hmac
+import logging
 import os
 import re
 import secrets
@@ -9,14 +10,15 @@ import ssl
 import time
 from pathlib import Path
 from email.message import EmailMessage
-from database import create_item, init_db, list_items
+from database import check_and_log_verification, create_item, ensure_schema, list_items
 from brand_assets import add_navigation_mascot_markers, image_data_uri
 
 import streamlit as st
-import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # Read Community Cloud secrets as environment settings, while keeping local .env support.
 for secret_name in (
@@ -53,7 +55,6 @@ add_navigation_mascot_markers()
 
 hero_source = image_data_uri("campus_building.jpg")
 mascot_avatar_source = image_data_uri("mascot_avatar.png")
-mascot_pointer_source = image_data_uri("mascot_pointer.svg")
 mascot_moods = {
     "happy": image_data_uri("mascot_happy.png"),
     "wink": image_data_uri("mascot_wink.png"),
@@ -63,7 +64,7 @@ mascot_moods = {
     "sleep": image_data_uri("mascot_sleep.png"),
 }
 
-init_db()
+ensure_schema()
 
 
 def verification_settings():
@@ -82,25 +83,31 @@ def valid_school_email(email, domain):
 
 
 def send_code(email, code):
-    message = EmailMessage()
-    message["Subject"] = "厦了么鱼邮箱验证码"
-    message["From"] = os.environ["SMTP_FROM"]
-    message["To"] = email
-    message.set_content(f"你的厦了么鱼验证码是：{code}\n验证码 10 分钟内有效，请勿转发给他人。")
+    try:
+        message = EmailMessage()
+        message["Subject"] = "厦了么鱼邮箱验证码"
+        message["From"] = os.environ["SMTP_FROM"]
+        message["To"] = email
+        message.set_content(f"你的厦了么鱼验证码是：{code}\n验证码 10 分钟内有效，请勿转发给他人。")
 
-    host = os.environ["SMTP_HOST"]
-    port = int(os.getenv("SMTP_PORT", "587"))
-    username = os.environ["SMTP_USER"]
-    password = os.environ["SMTP_PASSWORD"]
-    if os.getenv("SMTP_USE_SSL", "false").lower() in {"1", "true", "yes"}:
-        with smtplib.SMTP_SSL(host, port, context=ssl.create_default_context(), timeout=15) as server:
-            server.login(username, password)
-            server.send_message(message)
-    else:
-        with smtplib.SMTP(host, port, timeout=15) as server:
-            server.starttls(context=ssl.create_default_context())
-            server.login(username, password)
-            server.send_message(message)
+        host = os.environ["SMTP_HOST"]
+        port = int(os.getenv("SMTP_PORT", "587"))
+        username = os.environ["SMTP_USER"]
+        password = os.environ["SMTP_PASSWORD"]
+        if os.getenv("SMTP_USE_SSL", "false").lower() in {"1", "true", "yes"}:
+            with smtplib.SMTP_SSL(host, port, context=ssl.create_default_context(), timeout=15) as server:
+                server.login(username, password)
+                server.send_message(message)
+        else:
+            with smtplib.SMTP(host, port, timeout=15) as server:
+                server.starttls(context=ssl.create_default_context())
+                server.login(username, password)
+                server.send_message(message)
+    except Exception as exc:
+        # SMTP exceptions can embed the recipient address; log only the type
+        # here and let the caller log a sanitized traceback.
+        logger.warning("SMTP delivery failed (%s)", type(exc).__name__)
+        raise RuntimeError("验证码邮件发送失败") from None
 
 
 def issue_code(email, mode):
@@ -121,19 +128,41 @@ def issue_code(email, mode):
         st.session_state.pop("email_dev_code", None)
 
 
+def render_top_navigation():
+    """Use Streamlit's own navigation so moving between pages keeps the session.
+
+    A full-page anchor would reload the browser and reset the in-session
+    student-verification state.
+    """
+    with st.container(key="top_brand_bar"):
+        brand_col, nav_col = st.columns([1.15, 3.2], gap="small", vertical_alignment="center")
+        with brand_col:
+            st.markdown(
+                f'<div class="market-brand"><img class="brand-avatar" src="{mascot_avatar_source}" alt="厦了么鱼头像"/>'
+                '<span><b>厦了么鱼</b><small>让闲置流转 · 让校园更有温度</small></span></div>',
+                unsafe_allow_html=True,
+            )
+        with nav_col:
+            with st.container(
+                horizontal=True,
+                horizontal_alignment="right",
+                vertical_alignment="center",
+                gap="small",
+                key="top_nav_links",
+            ):
+                with st.container(key="top_nav_home", width="content"):
+                    st.page_link("首页.py", label="⌂ 首页")
+                st.page_link("pages/2_商品分类.py", label="商品分类")
+                st.page_link("pages/3_发布商品.py", label="发布商品")
+                st.page_link("pages/4_关于我们.py", label="关于我们")
+                with st.container(key="top_nav_cert", width="content"):
+                    if st.button("◉ 学生认证", key="nav_cert", type="tertiary", width="content"):
+                        st.session_state["scroll_to_verification"] = True
+
+
+render_top_navigation()
+
 st.markdown(f"""
-<div class="top-brand">
-  <div class="market-brand"><img class="brand-avatar" src="{mascot_avatar_source}" alt="厦了么鱼头像"/><span><b>厦了么鱼</b><small>让闲置流转 · 让校园更有温度</small></span></div>
-  <nav class="top-nav">
-    <a href="/"><span class="nav-label nav-active">⌂　首页</span><img class="nav-pointer" src="{mascot_pointer_source}" alt="吉祥物指向此处"/></a>
-    <a href="/商品分类"><span class="nav-label">商品分类</span><img class="nav-pointer" src="{mascot_pointer_source}" alt="吉祥物指向此处"/></a>
-    <a href="/发布商品"><span class="nav-label">发布商品</span><img class="nav-pointer" src="{mascot_pointer_source}" alt="吉祥物指向此处"/></a>
-    <a href="/关于我们"><span class="nav-label">关于我们</span><img class="nav-pointer" src="{mascot_pointer_source}" alt="吉祥物指向此处"/></a>
-    <a class="nav-cert" href="/#student-email-verification">
-      <span class="nav-label">◉　学生认证</span><img class="nav-pointer" src="{mascot_pointer_source}" alt="吉祥物指向此处"/>
-    </a>
-  </nav>
-</div>
 <div class="hero-banner" style="position:relative;isolation:isolate;overflow:hidden;min-height:290px;border-radius:18px;background:#d9e5df;">
   <img class="hero-background" src="{hero_source}" alt="嘉庚风格校园建筑" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 48%;z-index:0;" />
   <div class="hero-moods" aria-label="厦了么鱼吉祥物表情">
@@ -157,7 +186,7 @@ with main_col:
     st.markdown("""<div class="intro-strip"><span>📚 教材书籍</span><span>💻 电子产品</span><span>⌂ 宿舍生活</span><span>♧ 服饰箱包</span><span>⚽ 运动户外</span><span>✣ 其他分类</span></div>""", unsafe_allow_html=True)
 
 with side_col:
-    st.markdown(f"""<div class="side-login"><img class="side-login-avatar" src="{mascot_moods['wink']}" alt="比心的小鱼"/><b>欢迎来到厦了么鱼</b><small>登录后体验更多功能</small></div>""", unsafe_allow_html=True)
+    st.markdown(f"""<div class="side-login"><img class="side-login-avatar" src="{mascot_moods['wink']}" alt="比心的小鱼"/><b>欢迎来到厦了么鱼</b><small>完成学生认证后即可发布闲置</small></div>""", unsafe_allow_html=True)
 with side_col:
         st.markdown("""<div class="side-promo"><small>XMUM CAMPUS MARKET</small><b>校园二手交易<br>让好物继续发光</b></div>""", unsafe_allow_html=True)
         st.markdown(f'<img class="side-promo-image" src="{hero_source}" alt="校园建筑" />', unsafe_allow_html=True)
@@ -165,7 +194,7 @@ with side_col:
 with main_col:
     with st.expander("➕ 发布闲置好物", expanded=False):
         if not st.session_state.get("email_verified"):
-            st.info("请先在右侧完成学生邮箱验证，再发布商品。")
+            st.info("请先在页面底部完成学生认证，再发布商品。")
         else:
             with st.form("create_product_form"):
                 product_name = st.text_input("商品名称", max_chars=50)
@@ -179,15 +208,20 @@ with main_col:
                 if not product_name.strip() or not seller_name.strip():
                     st.error("请填写商品名称和昵称。")
                 else:
-                    create_item(
-                        product_name.strip(),
-                        product_category,
-                        product_price,
-                        seller_name.strip(),
-                        st.session_state.verified_email,
-                        product_description.strip(),
-                    )
-                    st.success("商品已发布。")
+                    try:
+                        create_item(
+                            product_name.strip(),
+                            product_category,
+                            product_price,
+                            seller_name.strip(),
+                            st.session_state.verified_email,
+                            product_description.strip(),
+                        )
+                    except Exception:
+                        logger.exception("Failed to create a product from the home page")
+                        st.error("商品发布失败，请稍后重试。")
+                    else:
+                        st.success("商品已发布。")
 
     search_text = st.text_input(
         "🔍 搜一搜",
@@ -206,7 +240,12 @@ with main_col:
     st.divider()
     st.subheader("校园热门推荐")
 
-    items = list_items()
+    try:
+        items = list_items()
+    except Exception:
+        logger.exception("Failed to load products for the home page")
+        st.error("商品加载失败，请稍后重试。")
+        items = []
 
     shown_items = [
         item for item in items
@@ -285,11 +324,14 @@ with st.expander(
                 st.error(f"请输入有效的学校邮箱（@{domain}）。")
             elif verify_mode == "smtp" and not smtp_ready:
                 st.error("SMTP 配置不完整，请先补齐邮件服务配置。")
+            elif not check_and_log_verification(email):
+                st.error("请求过于频繁，请稍后再试。")
             else:
                 try:
                     issue_code(email, verify_mode)
                     st.rerun()
-                except (KeyError, ValueError, OSError, smtplib.SMTPException):
+                except Exception:
+                    logger.exception("Failed to issue a verification code")
                     st.error("验证码发送失败，请检查 SMTP 配置后重试。")
 
         pending = st.session_state.get("email_pending")
@@ -331,11 +373,15 @@ with st.expander(
 
                 elapsed = time.time() - st.session_state.get("email_code_sent_at", 0)
                 if elapsed >= 60 and st.button("重新发送验证码"):
-                    try:
-                        issue_code(pending, verify_mode)
-                        st.rerun()
-                    except (KeyError, ValueError, OSError, smtplib.SMTPException):
-                        st.error("验证码发送失败，请检查 SMTP 配置后重试。")
+                    if not check_and_log_verification(pending):
+                        st.error("请求过于频繁，请稍后再试。")
+                    else:
+                        try:
+                            issue_code(pending, verify_mode)
+                            st.rerun()
+                        except Exception:
+                            logger.exception("Failed to resend a verification code")
+                            st.error("验证码发送失败，请检查 SMTP 配置后重试。")
                 elif elapsed < 60:
                     st.caption(f"{max(1, 60 - int(elapsed))} 秒后可重新发送。")
 
@@ -344,35 +390,31 @@ st.markdown(f"""
 <div class="site-footer"><b><img class="footer-mascot-avatar" src="{mascot_avatar_source}" alt=""/> 厦了么鱼</b><span>自强不息 · 止于至善</span><small>XMUM Campus Marketplace · 让闲置流动起来</small></div>
 """, unsafe_allow_html=True)
 
-# The fragment URL remains useful for direct links. This small same-origin bridge
-# also makes a click reliably scroll Streamlit's document to the full-width form.
-components.html(
+# The 学生认证 button only sets a session flag, so navigation stays in-app.
+# This small same-origin bridge scrolls the Streamlit document after the
+# verification section has been rendered. It no longer depends on nav markup.
+scroll_requested = st.session_state.pop("scroll_to_verification", False)
+st.iframe(
     """<!doctype html><html><body><script>
     (() => {
       try {
         const host = window.parent;
-        const bindAuthLink = () => {
-          const link = host.document.querySelector('.top-nav a.nav-cert');
-          if (!link || link.dataset.authScrollBound === 'true') return;
-          link.dataset.authScrollBound = 'true';
-          link.addEventListener('click', (event) => {
-            const target = host.document.getElementById('student-email-verification');
-            if (!target) return;
-            event.preventDefault();
-            event.stopPropagation();
-            host.history.pushState(null, '', '/#student-email-verification');
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }, true);
+        const requested = %s;
+        const hasFragment = host.location.hash === '#student-email-verification';
+        if (!requested && !hasFragment) return;
+        const scrollToVerification = () => {
+          const target = host.document.getElementById('student-email-verification');
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
-        bindAuthLink();
-        const observer = new host.MutationObserver(bindAuthLink);
-        observer.observe(host.document.body, { childList: true, subtree: true });
+        window.setTimeout(scrollToVerification, 150);
+        window.setTimeout(scrollToVerification, 500);
       } catch (_) {
-        // Native fragment navigation remains available if the browser blocks the bridge.
+        // Scrolling is an enhancement; the section is still present without it.
       }
     })();
-    </script></body></html>""",
-    height=0,
-    scrolling=False,
+    </script></body></html>""" % ("true" if scroll_requested else "false"),
+    width="stretch",
+    height=1,
+    tab_index=-1,
 )
 

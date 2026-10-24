@@ -1,6 +1,6 @@
-streamlit
-pandas
-numpy
-pydeck
-python-dotenv
-psycopg[binary]
+streamlit==1.66.1
+pandas==3.1.0
+numpy==2.5.4
+pydeck==0.9.3
+python-dotenv==1.2.4
+psycopg[binary]==3.3.6

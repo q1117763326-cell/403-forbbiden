@@ -222,3 +222,7 @@ __marimo__/
 # App data
 campus_market.db
 *.db-journal
+
+# SQLite WAL sidecar files
+*.db-wal
+*.db-shm
