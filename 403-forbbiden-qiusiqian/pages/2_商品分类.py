@@ -2,9 +2,15 @@ import html
 import logging
 
 import streamlit as st
-from database import list_items
-from brand_assets import add_navigation_mascot_markers, image_data_uri
+from database import CATEGORIES, list_items
+from brand_assets import (
+    CATEGORY_ICONS,
+    add_navigation_mascot_markers,
+    image_data_uri,
+)
 from product_ui import render_contact_and_sale_actions
+from search_utils import search_items, sort_items, suggest_similar_items
+from text_utils import format_relative_time
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +220,7 @@ filter_col, search_col, sort_col = st.columns([1.2, 2.2, 1.2])
 with filter_col:
     selected_category = st.selectbox(
         "商品分类",
-        ["全部分类", "教材资料", "数码产品", "生活用品", "运动户外"],
+        ["全部分类", *CATEGORIES],
     )
 
 with search_col:
@@ -226,22 +232,19 @@ with search_col:
 with sort_col:
     sort_option = st.selectbox(
         "排序方式",
-        ["最新发布", "价格从低到高"],
+        ["最新发布", "价格从低到高", "价格从高到低"],
     )
 
-shown_items = []
-
-for item in items:
-    if selected_category != "全部分类" and item["category"] != selected_category:
-        continue
-
-    if search_text and search_text.lower() not in item["name"].lower():
-        continue
-
-    shown_items.append(item)
-
-if sort_option == "价格从低到高":
-    shown_items.sort(key=lambda item: item["price"])
+category_items = [
+    item for item in items
+    if selected_category == "全部分类" or item["category"] == selected_category
+]
+shown_items = (
+    search_items(category_items, search_text)
+    if search_text.strip()
+    else category_items
+)
+shown_items = sort_items(shown_items, sort_option)
 
 st.divider()
 
@@ -252,7 +255,7 @@ with metric_col:
 
 with heading_col:
     st.markdown('<div class="section-kicker">CAMPUS FINDS</div>', unsafe_allow_html=True)
-    st.subheader("校园热门推荐")
+    st.subheader("最新发布")
     st.caption(f"找到 {len(shown_items)} 件符合条件的商品")
 
 if not shown_items:
@@ -266,15 +269,13 @@ if not shown_items:
         """,
         unsafe_allow_html=True,
     )
+    if search_text.strip():
+        suggestions = suggest_similar_items(category_items, search_text)
+        if suggestions:
+            st.caption(
+                "你是不是想找：" + "、".join(html.escape(name) for name in suggestions)
+            )
 else:
-    category_icons = {
-        "教材资料": "📚",
-        "数码产品": "💻",
-        "生活用品": "🏠",
-        "运动户外": "⚽",
-        "服饰箱包": "🎒",
-    }
-
     product_columns = st.columns(3)
 
     for index, item in enumerate(shown_items):
@@ -283,8 +284,9 @@ else:
         seller = html.escape(str(item["seller"]))
         description = html.escape(str(item.get("description", "")))
         avatar_mood = mascot_moods[index % len(mascot_moods)]
-        icon = category_icons.get(item["category"], "🐟")
-        price = f"{float(item['price']):g}"
+        icon = CATEGORY_ICONS[item["category"]]
+        price = f"{float(item['price']):.2f}"
+        relative_time = html.escape(format_relative_time(item.get("created_at")))
 
         with product_columns[index % 3]:
             st.markdown(
@@ -295,6 +297,7 @@ else:
                     <div class="product-category">{category}</div>
                     <div class="product-price">RM {price}</div>
                     <div class="product-meta seller-row"><img src="{avatar_mood}" alt="厦了么鱼表情头像"/><span>发布者：{seller}</span></div>
+                    <div class="product-meta">发布于 {relative_time}</div>
                     <div class="product-description">{description}</div>
                 </div>
                 """,

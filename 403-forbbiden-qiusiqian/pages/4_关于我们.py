@@ -104,7 +104,7 @@ try:
 except Exception:
     logger.exception("Failed to load product statistics for the about page")
     st.error("商品数据加载失败，请稍后重试。")
-    stats = {"total": 0, "available": 0, "categories": 0}
+    stats = {"total": 0, "available": 0, "sold": 0, "categories": 0}
 
 mascot_happy = image_data_uri("mascot_happy.png")
 mascot_wink = image_data_uri("mascot_wink.png")
@@ -112,11 +112,13 @@ mascot_cheer = image_data_uri("mascot_cheer.png")
 mascot_serious = image_data_uri("mascot_serious.png")
 mascot_sleep = image_data_uri("mascot_sleep.png")
 
-metric_a, metric_b, metric_c, metric_d = st.columns(4)
-metric_a.metric("平台商品", stats["total"])
+metric_a, metric_b, metric_c = st.columns(3)
+metric_a.metric("已让闲置继续使用", stats["sold"])
 metric_b.metric("在售好物", stats["available"])
-metric_c.metric("商品分类", stats["categories"])
-metric_d.metric("服务对象", "校园社区")
+metric_c.metric("平台商品", stats["total"])
+st.caption(
+    f"已让 {stats['sold']} 件闲置继续使用 / 在售 {stats['available']} 件 / 共 {stats['total']} 件"
+)
 
 st.divider()
 

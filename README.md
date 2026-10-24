@@ -28,7 +28,7 @@
 | 功能 | 说明 |
 | --- | --- |
 | 🎓 学生邮箱认证 | 仅接受 `@xmu.edu.my`；验证码 10 分钟有效、最多尝试 5 次、60 秒重发冷却 |
-| 🛍️ 商品浏览 | 分类筛选、关键词搜索、价格排序、热门推荐 |
+| 🛍️ 商品浏览 | 分类筛选、多词/同义词搜索、相关性排序、价格排序、最新发布 |
 | 📦 发布闲置 | 名称 / 分类 / 价格（RM）/ 昵称 / 描述 / 可选联系方式；未认证用户会被拦截 |
 | 🤝 联系方式与售出 | 支持 WhatsApp / Telegram 链接或微信号；发布者可标记已售出，已售商品默认隐藏 |
 | 🎨 品牌化界面 | 嘉庚风格视觉、校园吉祥物、响应式布局 |
@@ -90,7 +90,8 @@ SMTP_FROM=<your-email>
 ├── brand_assets.py      图片转 data URI（带缓存）、侧边栏装饰
 ├── database.py          SQLite / PostgreSQL 数据层
 ├── product_ui.py        联系方式与售出操作
-├── text_utils.py        邮箱打码等文本工具
+├── search_utils.py      多词/同义词搜索与建议
+├── text_utils.py        邮箱打码、相对时间等文本工具
 ├── styles.css           全局样式
 ├── requirements.txt     Python 依赖
 └── requirements-dev.txt 测试依赖
@@ -102,6 +103,7 @@ docs/preview.png         首页截图
 
 - 仅接受 `@xmu.edu.my` 学校邮箱；验证码发送到该邮箱，需实际收信才能通过（证明邮箱所有权）
 - 验证码加盐哈希存储、10 分钟过期、最多 5 次尝试、60 秒重发冷却
+- 服务端按邮箱哈希记录验证失败，15 分钟内错误 ≥10 次会锁定 15 分钟；验证成功后清空失败记录
 - 页面上的认证邮箱统一打码展示（如 `alice@xmu.edu.my` → `a***@xmu.edu.my`）；完整邮箱仍保留在会话状态与 `seller_email` 字段中，仅用于商品所有权判断，不会展示
 - 商品联系方式由用户填写：链接仅支持 http(s)/mailto，纯文本按原文转义展示；发布时拒绝 `javascript:`、`data:` 等危险前缀
 - `seller_email` 不会随商品列表返回或展示
@@ -117,7 +119,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 pytest -q
 ```
 
-测试使用 `tests/test_flow.py` 中的临时 SQLite 数据库，不会读写 `campus_market.db`。覆盖邮箱域名校验、验证码错误/过期、未认证发布拦截、商品发布落库、联系方式校验、已售出过滤与列表上限。
+测试使用 `tests/test_flow.py` 中的临时 SQLite 数据库，不会读写 `campus_market.db`。覆盖多词/同义词搜索与建议、价格排序、分类白名单、服务端校验、重复提交、验证码错误/过期与失败锁定、未认证发布拦截、发布落库、联系方式校验、已售出过滤与列表上限。
 
 ## 🤝 联系方式与已售出
 

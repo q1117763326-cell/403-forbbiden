@@ -9,6 +9,21 @@ import streamlit as st
 
 ASSET_DIR = Path(__file__).resolve().parent / "assets"
 
+CATEGORY_ARTWORK = {
+    "教材资料": "product_books.jpg",
+    "数码产品": "product_tech.jpg",
+    "生活用品": "product_lifestyle.jpg",
+    "运动户外": "product_sports.svg",
+    "服饰箱包": "product_bag.jpg",
+}
+CATEGORY_ICONS = {
+    "教材资料": "📚",
+    "数码产品": "💻",
+    "生活用品": "🏠",
+    "运动户外": "⚽",
+    "服饰箱包": "🎒",
+}
+
 
 @st.cache_data
 def image_data_uri(filename: str) -> str:

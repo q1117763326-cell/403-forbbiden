@@ -10,16 +10,26 @@ import ssl
 import time
 from pathlib import Path
 from email.message import EmailMessage
+from email.utils import formataddr, formatdate, make_msgid
 from database import (
+    CATEGORIES,
     check_and_log_verification,
+    clear_verification_failures,
     create_item,
     ensure_schema,
     list_items,
-    normalize_contact,
+    record_verification_failure,
+    verification_lockout_remaining,
 )
-from brand_assets import add_navigation_mascot_markers, image_data_uri
+from brand_assets import (
+    CATEGORY_ARTWORK,
+    CATEGORY_ICONS,
+    add_navigation_mascot_markers,
+    image_data_uri,
+)
 from product_ui import render_contact_and_sale_actions
-from text_utils import mask_email
+from search_utils import search_items, suggest_similar_items
+from text_utils import format_relative_time, mask_email
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -92,11 +102,19 @@ def valid_school_email(email, domain):
 
 def send_code(email, code):
     try:
+        from_address = os.environ["SMTP_FROM"]
+        mail_domain = os.getenv("SCHOOL_EMAIL_DOMAIN", "xmu.edu.my").strip().lower().lstrip("@")
         message = EmailMessage()
         message["Subject"] = "厦了么鱼邮箱验证码"
-        message["From"] = os.environ["SMTP_FROM"]
+        message["From"] = formataddr(("厦了么鱼", from_address))
         message["To"] = email
-        message.set_content(f"你的厦了么鱼验证码是：{code}\n验证码 10 分钟内有效，请勿转发给他人。")
+        message["Date"] = formatdate(localtime=True)
+        message["Message-ID"] = make_msgid(domain=mail_domain or "xmu.edu.my")
+        message.set_content(
+            f"你的厦了么鱼验证码是：{code}\n"
+            "验证码 10 分钟内有效，请勿转发给他人。\n"
+            "如果没收到邮件，请查看垃圾邮件文件夹。"
+        )
 
         host = os.environ["SMTP_HOST"]
         port = int(os.getenv("SMTP_PORT", "587"))
@@ -134,6 +152,27 @@ def issue_code(email, mode):
         st.session_state.email_dev_code = code
     else:
         st.session_state.pop("email_dev_code", None)
+
+
+PENDING_VERIFICATION_KEYS = (
+    "email_pending",
+    "email_code_hash",
+    "email_code_salt",
+    "email_code_expires",
+    "email_code_attempts",
+    "email_code_sent_at",
+    "email_dev_code",
+)
+
+
+def clear_pending_verification_state():
+    for key in PENDING_VERIFICATION_KEYS:
+        st.session_state.pop(key, None)
+
+
+def clear_verified_state():
+    for key in ("email_verified", "verified_email"):
+        st.session_state.pop(key, None)
 
 
 def render_top_navigation():
@@ -191,7 +230,11 @@ st.markdown(f"""
 main_col, side_col = st.columns([3.25, 1], gap="large")
 
 with main_col:
-    st.markdown("""<div class="intro-strip"><span>📚 教材书籍</span><span>💻 电子产品</span><span>⌂ 宿舍生活</span><span>♧ 服饰箱包</span><span>⚽ 运动户外</span><span>✣ 其他分类</span></div>""", unsafe_allow_html=True)
+    intro_strip = "".join(
+        f"<span>{CATEGORY_ICONS[category]} {html.escape(category)}</span>"
+        for category in CATEGORIES
+    )
+    st.markdown(f'<div class="intro-strip">{intro_strip}</div>', unsafe_allow_html=True)
 
 with side_col:
     st.markdown(f"""<div class="side-login"><img class="side-login-avatar" src="{mascot_moods['wink']}" alt="比心的小鱼"/><b>欢迎来到厦了么鱼</b><small>完成学生认证后即可发布闲置</small></div>""", unsafe_allow_html=True)
@@ -206,8 +249,15 @@ with main_col:
         else:
             with st.form("create_product_form"):
                 product_name = st.text_input("商品名称", max_chars=50)
-                product_category = st.selectbox("分类", ["教材资料", "数码产品", "生活用品", "运动户外"])
-                product_price = st.number_input("价格（RM）", min_value=0.0, max_value=99999.0, value=10.0, step=1.0)
+                product_category = st.selectbox("分类", CATEGORIES)
+                product_price = st.number_input(
+                    "价格（RM）",
+                    min_value=0.0,
+                    max_value=99999.0,
+                    value=10.0,
+                    step=0.5,
+                    format="%.2f",
+                )
                 seller_name = st.text_input("你的昵称", max_chars=20)
                 product_description = st.text_area("商品描述", max_chars=300, placeholder="介绍新旧程度、交易地点等")
                 product_contact = st.text_input(
@@ -219,29 +269,23 @@ with main_col:
                 publish = st.form_submit_button("发布商品")
 
             if publish:
-                if not product_name.strip() or not seller_name.strip():
-                    st.error("请填写商品名称和昵称。")
+                try:
+                    create_item(
+                        product_name,
+                        product_category,
+                        product_price,
+                        seller_name,
+                        st.session_state.verified_email,
+                        product_description,
+                        product_contact,
+                    )
+                except ValueError as exc:
+                    st.error(str(exc))
+                except Exception:
+                    logger.exception("Failed to create a product from the home page")
+                    st.error("商品发布失败，请稍后重试。")
                 else:
-                    try:
-                        contact = normalize_contact(product_contact)
-                    except ValueError as exc:
-                        st.error(str(exc))
-                    else:
-                        try:
-                            create_item(
-                                product_name.strip(),
-                                product_category,
-                                product_price,
-                                seller_name.strip(),
-                                st.session_state.verified_email,
-                                product_description.strip(),
-                                contact,
-                            )
-                        except Exception:
-                            logger.exception("Failed to create a product from the home page")
-                            st.error("商品发布失败，请稍后重试。")
-                        else:
-                            st.success("商品已发布。")
+                    st.success("商品已发布。")
 
     search_text = st.text_input(
         "🔍 搜一搜",
@@ -249,16 +293,15 @@ with main_col:
     )
 
     st.subheader("按分类发现好物")
-    categories = ["全部", "教材资料", "数码产品", "生活用品", "运动户外"]
     selected_category = st.radio(
         "选择分类",
-        categories,
+        ["全部", *CATEGORIES],
         horizontal=True,
         label_visibility="collapsed",
     )
 
     st.divider()
-    st.subheader("校园热门推荐")
+    st.subheader("最新发布")
 
     viewer_email = (
         st.session_state.get("verified_email")
@@ -272,42 +315,41 @@ with main_col:
         st.error("商品加载失败，请稍后重试。")
         items = []
 
-    shown_items = [
+    category_items = [
         item for item in items
         if selected_category == "全部" or item["category"] == selected_category
     ]
-
-    if search_text:
-        shown_items = [
-            item for item in shown_items
-            if search_text.lower() in item["name"].lower()
-        ]
+    shown_items = (
+        search_items(category_items, search_text)
+        if search_text.strip()
+        else category_items
+    )
 
     if not shown_items:
         st.info("没有找到相关商品，换个关键词或分类试试。")
+        if search_text.strip():
+            suggestions = suggest_similar_items(category_items, search_text)
+            if suggestions:
+                st.caption(
+                    "你是不是想找：" + "、".join(html.escape(name) for name in suggestions)
+                )
     else:
-        # Category artwork is bundled locally, so cards never depend on remote image URLs.
-        category_art = {
-            "教材资料": "product_books.jpg",
-            "数码产品": "product_tech.jpg",
-            "生活用品": "product_lifestyle.jpg",
-            "服饰箱包": "product_bag.jpg",
-            "运动户外": "product_sports.svg",
-        }
         columns = st.columns(3)
 
         for index, item in enumerate(shown_items):
             with columns[index % 3]:
                 with st.container(border=True):
-                    art_name = category_art.get(item["category"], "product_lifestyle.jpg")
-                    art_source = image_data_uri(art_name)
+                    art_source = image_data_uri(CATEGORY_ARTWORK[item["category"]])
                     avatar_mood = list(mascot_moods.values())[index % len(mascot_moods)]
+                    relative_time = html.escape(format_relative_time(item.get("created_at")))
                     st.markdown(f'<div class="product-icon"><img src="{art_source}" alt="{item["category"]}分类图"></div>', unsafe_allow_html=True)
                     st.markdown(f"### {item['name']}")
                     st.markdown(f'<span class="category-pill">{item["category"]}</span>', unsafe_allow_html=True)
-                    st.markdown(f'<div class="product-price">RM {item["price"]:g}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="product-price">RM {float(item["price"]):.2f}</div>', unsafe_allow_html=True)
                     seller_text = html.escape(str(item["seller"]))
                     st.markdown(f'<div class="seller-row"><img src="{avatar_mood}" alt="厦了么鱼表情头像"/><span>发布者：<b>{seller_text}</b></span></div>', unsafe_allow_html=True)
+                    if relative_time:
+                        st.markdown(f'<div class="product-meta">发布于 {relative_time}</div>', unsafe_allow_html=True)
                     if item["description"]:
                         st.caption(item["description"])
                     render_contact_and_sale_actions(
@@ -367,9 +409,7 @@ with st.expander(
         pending = st.session_state.get("email_pending")
         if pending:
             if time.time() >= st.session_state.get("email_code_expires", 0):
-                st.session_state.pop("email_pending", None)
-                st.session_state.pop("email_code_hash", None)
-                st.session_state.pop("email_dev_code", None)
+                clear_pending_verification_state()
                 st.warning("验证码已过期，请重新申请。")
             else:
                 if verify_mode == "dev":
@@ -381,7 +421,9 @@ with st.expander(
 
                 if verify_code:
                     attempts = st.session_state.get("email_code_attempts", 0)
-                    if attempts >= 5:
+                    if verification_lockout_remaining(pending) > 0:
+                        st.error("验证码错误次数过多，请 15 分钟后再试。")
+                    elif attempts >= 5:
                         st.error("尝试次数已用完，请重新申请验证码。")
                     elif not re.fullmatch(r"\d{6}", entered_code):
                         st.error("请输入 6 位数字验证码。")
@@ -391,15 +433,26 @@ with st.expander(
                             st.session_state.email_code_salt + entered_code.encode("ascii")
                         ).digest()
                         if hmac.compare_digest(expected, st.session_state.email_code_hash):
+                            verified_email = pending
+                            try:
+                                clear_verification_failures(verified_email)
+                            except Exception:
+                                logger.exception("Failed to clear verification failures")
                             st.session_state.email_verified = True
-                            st.session_state.verified_email = pending
-                            for key in ("email_pending", "email_code_hash", "email_code_salt", "email_code_expires", "email_dev_code"):
-                                st.session_state.pop(key, None)
+                            st.session_state.verified_email = verified_email
+                            clear_pending_verification_state()
                             st.success("邮箱验证码通过。")
                             st.rerun()
                         else:
-                            remaining = 4 - attempts
-                            st.error(f"验证码不正确。还可尝试 {remaining} 次。")
+                            try:
+                                record_verification_failure(pending)
+                            except Exception:
+                                logger.exception("Failed to record a verification failure")
+                            if verification_lockout_remaining(pending) > 0:
+                                st.error("验证码错误次数过多，请 15 分钟后再试。")
+                            else:
+                                remaining = 4 - attempts
+                                st.error(f"验证码不正确。还可尝试 {remaining} 次。")
 
                 elapsed = time.time() - st.session_state.get("email_code_sent_at", 0)
                 if elapsed >= 60 and st.button("重新发送验证码"):
@@ -414,6 +467,26 @@ with st.expander(
                             st.error("验证码发送失败，请检查 SMTP 配置后重试。")
                 elif elapsed < 60:
                     st.caption(f"{max(1, 60 - int(elapsed))} 秒后可重新发送。")
+
+    if st.session_state.get("email_verified") or st.session_state.get("email_pending"):
+        st.divider()
+        action_cols = st.columns(2)
+        if action_cols[0].button(
+            "换一个邮箱",
+            key="change_verification_email",
+            use_container_width=True,
+        ):
+            clear_pending_verification_state()
+            clear_verified_state()
+            st.rerun()
+        if action_cols[1].button(
+            "退出验证",
+            key="exit_verification",
+            use_container_width=True,
+        ):
+            clear_pending_verification_state()
+            clear_verified_state()
+            st.rerun()
 
 st.markdown(f"""
 <div class="campus-footer-banner"><div><b>在厦马 · 遇见更好的校园生活</b><span>Better Campus · Better Life</span></div><div class="footer-line-art">⌂　⌂　⌂</div></div>

@@ -1,7 +1,7 @@
 import logging
 
 import streamlit as st
-from database import create_item, normalize_contact
+from database import CATEGORIES, create_item
 from brand_assets import add_navigation_mascot_markers, image_data_uri
 from text_utils import mask_email
 
@@ -96,7 +96,7 @@ else:
 
                 category = st.selectbox(
                     "商品分类 *",
-                    ["教材资料", "数码产品", "生活用品", "运动户外"],
+                    CATEGORIES,
                 )
 
                 price = st.number_input(
@@ -104,7 +104,8 @@ else:
                     min_value=0.0,
                     max_value=99999.0,
                     value=10.0,
-                    step=1.0,
+                    step=0.5,
+                    format="%.2f",
                 )
 
                 seller = st.text_input("你的昵称 *", max_chars=20)
@@ -147,26 +148,20 @@ else:
         st.caption(mask_email(st.session_state.get("verified_email", "")))
 
     if submitted:
-        if not name.strip() or not seller.strip():
-            st.error("请填写商品名称和昵称。")
+        try:
+            create_item(
+                name,
+                category,
+                price,
+                seller,
+                st.session_state.verified_email,
+                description,
+                contact,
+            )
+        except ValueError as exc:
+            st.error(str(exc))
+        except Exception:
+            logger.exception("Failed to create a product from the publish page")
+            st.error("商品发布失败，请稍后重试。")
         else:
-            try:
-                contact_value = normalize_contact(contact)
-            except ValueError as exc:
-                st.error(str(exc))
-            else:
-                try:
-                    create_item(
-                        name.strip(),
-                        category,
-                        price,
-                        seller.strip(),
-                        st.session_state.verified_email,
-                        description.strip(),
-                        contact_value,
-                    )
-                except Exception:
-                    logger.exception("Failed to create a product from the publish page")
-                    st.error("商品发布失败，请稍后重试。")
-                else:
-                    st.success("商品发布成功！可以去商品分类页面查看。")
+            st.success("商品发布成功！可以去商品分类页面查看。")
